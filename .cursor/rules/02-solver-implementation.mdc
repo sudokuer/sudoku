@@ -1,0 +1,44 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 数独求解器实现
+
+本项目包含两种主要的求解器实现：
+
+1. **超快速求解器** - 一个基于 jczsolve 算法的高性能求解器
+2. **策略求解器** - 使用人类解题策略的求解器
+
+## 超快速求解器
+
+[src/solver.rs](mdc:src/solver.rs) 文件实现了基于 jczsolve 算法的高性能求解器。主要特点：
+
+- 基于带状数据结构，使用位掩码表示每个单元格的可能数字
+- 使用 `SudokuSolver` 结构体处理求解过程
+- 主要策略包括：
+  - 寻找裸单元格（Naked Singles）
+  - 寻找锁定候选数（Locked Candidates）
+  - 使用回溯（Backtracking）猜测解
+
+关键方法：
+- `find_naked_singles()` - 寻找只能包含一个数字的单元格
+- `find_locked_candidates_and_update()` - 寻找锁定候选数并更新
+- `guess_bivalue_in_cell()` - 在只有两个可能值的单元格中尝试猜测
+- `guess_some_cell()` - 在其他单元格中尝试猜测
+
+## 策略求解器
+
+[src/strategy.rs](mdc:src/strategy.rs) 和 [src/strategy/](mdc:src/strategy/) 目录实现了使用人类策略的求解器，包括：
+
+- 裸单元格和隐藏单元格
+- 锁定候选数
+- 裸对子、三对子和四对子
+- 隐藏对子、三对子和四对子
+- 基本鱼形（X-Wing, Swordfish, Jellyfish）
+
+策略求解器的主要目的是：
+1. 为数独评级
+2. 提供解题提示
+3. 解释解题过程
+4. 生成特定难度的数独谜题

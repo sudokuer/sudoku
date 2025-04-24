@@ -1,0 +1,54 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 数独生成器与使用示例
+
+## 数独生成器
+
+[src/generator.rs](mdc:src/generator.rs) 实现了数独生成器，可以创建具有唯一解的数独谜题。
+
+生成过程：
+1. 创建一个已解决的数独板（完整填充）
+2. 根据指定的对称性模式，逐步移除数字
+3. 每次移除后检查数独是否仍具有唯一解
+4. 继续此过程直到达到所需的难度或不能再移除数字
+
+主要功能：
+- 支持不同的对称性模式（完全对称、对角对称等）
+- 可以生成指定难度的数独（通过保留的数字数量）
+- 保证生成的数独具有唯一解
+
+## 使用示例
+
+### 基本用法
+
+[examples/example.rs](mdc:examples/example.rs) 展示了库的基本用法：
+
+```rust
+use sudoku::Sudoku;
+
+fn main() {
+    // 从字符串创建数独
+    let sudoku_line = "...2...633....54.1..1..398........9....538....3........263..5..5.37....847...1...";
+    let sudoku = Sudoku::from_str_line(sudoku_line).unwrap();
+
+    // 求解并打印结果
+    if let Some(solution) = sudoku.solution() {
+        println!("{}", solution);
+    } else {
+        println!("No solution found");
+    }
+}
+```
+
+### Project Euler 示例
+
+[examples/project_euler.rs](mdc:examples/project_euler.rs) 展示了如何解决 Project Euler 问题 96，这个问题涉及解决多个数独谜题并计算结果。
+
+## 测试数据
+
+- [sudokus/](mdc:sudokus/) 目录包含各种难度的数独测试数据
+- [tests/](mdc:tests/) 目录包含用于测试库功能的测试
+- [benches/](mdc:benches/) 目录包含性能基准测试，用于评估和优化求解器速度

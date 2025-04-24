@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Sudoku 项目概述
+
+此库是一个用 Rust 编写的高性能数独解决方案，提供以下主要功能：
+
+1. **超快的数独求解器** - 基于 jczsolve 算法，它是世界上最快的数独求解算法之一
+2. **基本的数独生成器** - 可以生成各种难度的数独谜题
+3. **策略解决器** - 使用人类策略解决数独，包括隐藏/显式单元格、锁定候选者、隐藏/显式子集和基本鱼形（X-Wing, Swordfish, Jellyfish）
+
+## 主要文件结构
+
+- [src/lib.rs](mdc:src/lib.rs) - 库的主入口点
+- [src/solver.rs](mdc:src/solver.rs) - 超快速数独求解器的实现
+- [src/generator.rs](mdc:src/generator.rs) - 数独生成器的实现
+- [src/strategy.rs](mdc:src/strategy.rs) - 基于人类策略的数独求解器
+- [examples/example.rs](mdc:examples/example.rs) - 使用库的基本示例
+
+## 核心数据结构
+
+- **Sudoku** - 代表 9x9 数独的主要类型
+- **SudokuSolver** - 超快数独求解算法的实现
+- **Bitset** - 用于快速位操作的数据结构
+
+## 用法示例
+
+```rust
+use sudoku::Sudoku;
+
+// 从字符串创建数独
+let sudoku_line = "...2...633....54.1..1..398........9....538....3........263..5..5.37....847...1...";
+let sudoku = Sudoku::from_str_line(sudoku_line).unwrap();
+
+// 求解数独并打印结果
+if let Some(solution) = sudoku.solution() {
+    println!("{}", solution);
+}
+```

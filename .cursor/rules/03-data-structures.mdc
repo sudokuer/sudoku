@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
 # 数独项目的数据结构与类型
@@ -35,7 +35,7 @@ alwaysApply: false
 
 ### Board 相关类型
 
-[src/board/](mdc:src/board/) 目录包含与数独板相关的所有类型，如：
+[src/board/](mdc:src/board) 目录包含与数独板相关的所有类型，如：
 - 坐标系统（行、列、块）
 - 对称性类型（用于生成谜题）
 - 板操作（旋转、翻转等）

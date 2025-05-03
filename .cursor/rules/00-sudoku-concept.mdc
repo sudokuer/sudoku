@@ -1,0 +1,147 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 数独逻辑概念 (Sudoku Logical Concepts)
+
+## 翻译规则 (Translation Rules)
+
+### Block Translation
+- English: Block
+- Chinese: 宫
+- Note: In Chinese Sudoku terminology, "Block" is consistently translated as "宫" (gōng), not "块" (kuài). This translation is used throughout the codebase and documentation.
+- 注意：在中文数独术语中，"Block"统一翻译为"宫"（gōng），而不是"块"（kuài）。这个翻译在整个代码库和文档中保持一致。
+
+## 基本结构 (Basic Structures)
+
+### Band
+- Definition: Set of 3 Rows and 3 Blocks where each Row intersects each Block
+- 定义：3行和3个宫的集合，其中每行都与每个宫相交
+- Properties:
+  - There are 3 bands in a standard 9x9 Sudoku grid
+  - Each band contains 3 rows and 3 blocks
+  - Bands are numbered from 0 to 2, top to bottom
+  - 标准9x9数独网格中有3个带
+  - 每个带包含3行和3个宫
+  - 带从0到2编号，从上到下
+
+### Stack
+- Definition: Set of 3 Cols and 3 Blocks where each Col intersects each Block
+- 定义：3列和3个宫的集合，其中每列都与每个宫相交
+- Properties:
+  - There are 3 stacks in a standard 9x9 Sudoku grid
+  - Each stack contains 3 columns and 3 blocks
+  - Stacks are numbered from 0 to 2, left to right
+  - 标准9x9数独网格中有3个栈
+  - 每个栈包含3列和3个宫
+  - 栈从0到2编号，从左到右
+
+### Chute
+- Definition: A Band or Stack
+- 定义：带或栈的统称
+- Properties:
+  - Used when referring to both bands and stacks
+  - Helps in describing patterns that apply to both
+  - 用于同时指代带和栈
+  - 有助于描述同时适用于两者的模式
+
+### Block
+- Definition: Set of 9 cells in a 3x3 box shape
+- 定义：3x3盒子形状的9个单元格的集合
+- Properties:
+  - There are 9 blocks in a standard Sudoku grid
+  - Blocks are numbered from 0 to 8, left to right, top to bottom
+  - Each block must contain all digits from 1 to 9
+  - 标准数独网格中有9个宫
+  - 宫从0到8编号，从左到右，从上到下
+  - 每个宫必须包含1到9的所有数字
+
+### Cell
+- Definition: One of the 81 cells of the sudoku
+- 定义：数独81个单元格中的一个
+- Properties:
+  - Each cell can contain a digit from 1 to 9
+  - Cells are identified by their row and column indices
+  - 每个单元格可以包含1到9的数字
+  - 单元格由其行和列索引标识
+
+### Row
+- Definition: Set of 9 cells in a horizontal line
+- 定义：水平线上的9个单元格的集合
+- Properties:
+  - There are 9 rows in a standard Sudoku grid
+  - Rows are numbered from 0 to 8, top to bottom
+  - Each row must contain all digits from 1 to 9
+  - 标准数独网格中有9行
+  - 行从0到8编号，从上到下
+  - 每行必须包含1到9的所有数字
+
+### Col
+- Definition: Set of 9 cells in a vertical line
+- 定义：垂直线上的9个单元格的集合
+- Properties:
+  - There are 9 columns in a standard Sudoku grid
+  - Columns are numbered from 0 to 8, left to right
+  - Each column must contain all digits from 1 to 9
+  - 标准数独网格中有9列
+  - 列从0到8编号，从左到右
+  - 每列必须包含1到9的所有数字
+
+### House
+- Definition: A Row, Col or Block
+- 定义：行、列或宫的统称
+- Properties:
+  - Used when referring to any of the three basic constraint types
+  - Helps in describing patterns that apply to all three
+  - 用于指代三种基本约束类型中的任何一种
+  - 有助于描述同时适用于三者的模式
+
+### Line
+- Definition: A Row or Col
+- 定义：行或列的统称
+- Properties:
+  - Used when referring to both rows and columns
+  - Helps in describing patterns that apply to both
+  - 用于同时指代行和列
+  - 有助于描述同时适用于两者的模式
+
+### MiniRow
+- Definition: Intersection of a Block and a Row, 3 cells in a row
+- 定义：宫和行的交集，一行中的3个单元格
+- Properties:
+  - There are 3 minirows in each block
+  - Each minirow contains 3 cells
+  - Minirows are numbered from 0 to 2 within each block
+  - 每个宫中有3个迷你行
+  - 每个迷你行包含3个单元格
+  - 迷你行在每个宫中从0到2编号
+
+### MiniCol
+- Definition: Intersection of a Block and a Col, 3 cells in a column
+- 定义：宫和列的交集，一列中的3个单元格
+- Properties:
+  - There are 3 minicols in each block
+  - Each minicol contains 3 cells
+  - Minicols are numbered from 0 to 2 within each block
+  - 每个宫中有3个迷你列
+  - 每个迷你列包含3个单元格
+  - 迷你列在每个宫中从0到2编号
+
+### MiniLine
+- Definition: A MiniRow or MiniCol
+- 定义：迷你行或迷你列的统称
+- Properties:
+  - Used when referring to both minirows and minicols
+  - Helps in describing patterns that apply to both
+  - 用于同时指代迷你行和迷你列
+  - 有助于描述同时适用于两者的模式
+
+### Position
+- Definition: Generic struct for a cell inside a given set of cells, like e.g. a House
+- 定义：用于表示单元格在给定单元格集合（如House）中位置的通用结构
+- Properties:
+  - Used to track cell positions within various structures
+  - Helps in pattern recognition and solving techniques
+  - 用于跟踪单元格在各种结构中的位置
+  - 有助于模式识别和求解技巧

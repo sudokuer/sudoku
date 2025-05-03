@@ -1,0 +1,84 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Predefined Arrays in Sudoku Solver
+
+This document lists all predefined arrays used in the solver for performance optimization.
+
+## Array List
+
+### 1. SHRINK_MASK
+- Size: 512 elements
+- Type: `UncheckedIndexArray<u32, 512>`
+- Purpose: Compresses 9 cell possibilities into a 3-bit mask, one bit per block. Used to condense a 9-bit row mask into a 3-bit mask where each bit indicates possibility in the corresponding block.
+- 用途：将9个单元格的可能性压缩为3位掩码，每个位代表一个块。用于将9位的行掩码压缩为3位掩码，每个位表示对应块中是否有可能性。
+- 应用：在 `_find_locked_candidates_and_update` 函数中使用，用于快速识别锁定候选数。通过将9位掩码压缩为3位，大大减少了需要处理的数据量，提高了锁定候选数的检测效率。
+
+### 2. LOCKED_CANDIDATES_MASK_SAME_BAND
+- Size: 512 elements
+- Type: `UncheckedIndexArray<u32, 512>`
+- Purpose: Handles locked candidates within the same band. Returns a mask of cells compatible with locked candidates, considering both claiming and pointing type locked candidates.
+- 用途：处理同一带(band)中的锁定候选数。返回与锁定候选数兼容的单元格掩码，考虑了声明型和指向型锁定候选数。
+- 应用：在 `_find_locked_candidates_and_update` 函数中用于处理同一带中的锁定候选数。通过预计算所有可能的锁定候选数情况，避免了在运行时进行复杂的位运算，显著提高了求解速度。
+
+### 3. LOCKED_CANDIDATES_MASK_NEIGHBOR_BAND
+- Size: 512 elements
+- Type: `UncheckedIndexArray<u32, 512>`
+- Purpose: Handles locked candidates in neighboring bands, similar to LOCKED_CANDIDATES_MASK_SAME_BAND but for the other two bands.
+- 用途：处理相邻带中的锁定候选数，类似于 LOCKED_CANDIDATES_MASK_SAME_BAND，但用于其他两个带。
+- 应用：在 `_find_locked_candidates_and_update` 函数中用于处理相邻带中的锁定候选数。通过预计算相邻带中的锁定候选数情况，实现了跨带的快速候选数消除，提高了求解效率。
+
+### 4. LOCKED_MINIROWS
+- Size: 512 elements
+- Type: `UncheckedIndexArray<u32, 512>`
+- Purpose: Maps a mask of possible minirows to a mask of locked minirows (locked candidates). Recognizes both claiming and pointing type locked candidates.
+- 用途：将可能的迷你行掩码映射到锁定的迷你行掩码（锁定候选数）。识别声明型和指向型锁定候选数。
+- 应用：在 `_find_locked_candidates_and_update` 函数中用于识别锁定的迷你行。通过预计算所有可能的锁定迷你行情况，快速识别出可以消除的候选数，减少了运行时计算量。
+
+### 5. COLUMN_SINGLE
+- Size: 512 elements
+- Type: `UncheckedIndexArray<u32, 512>`
+- Purpose: Handles unique candidates in columns. Returns a mask indicating minirows in a box where a digit can only be in one column.
+- 用途：处理列中的唯一候选数。返回一个掩码，表示在某个块中数字只能出现在一个列中的迷你行。
+- 应用：在 `_find_locked_candidates_and_update` 函数中用于识别列中的唯一候选数。通过预计算所有可能的列唯一候选数情况，快速识别出可以确定的数字位置，加速求解过程。
+
+### 6. SELF_MASK
+- Size: 81 elements
+- Type: `UncheckedIndexArray<u32, 81>`
+- Purpose: Handles non-conflicting cells within the same band. Contains masks for each cell indicating other cells in the same band that don't conflict with it.
+- 用途：处理同一带中的非冲突单元格。包含每个单元格的掩码，表示与该单元格在同一带中不冲突的其他单元格。
+- 应用：在 `insert_candidate` 和 `insert_candidate_by_mask` 函数中使用，用于快速确定同一带中不冲突的单元格。通过预计算所有可能的非冲突情况，避免了在运行时进行复杂的冲突检测，提高了插入候选数的效率。
+
+### 7. ROW_MASK
+- Size: 8 elements
+- Type: `UncheckedIndexArray<u32, 8>`
+- Purpose: Expands a row mask in a band to a cell mask in the band. Used to convert row masks to corresponding cell masks.
+- 用途：将带中的行掩码扩展为带中的单元格掩码。用于将行掩码转换为对应的单元格掩码。
+- 应用：在 `_find_locked_candidates_and_update` 函数中用于将行掩码转换为单元格掩码。通过预计算所有可能的行掩码到单元格掩码的转换，简化了掩码操作，提高了代码执行效率。
+
+### 8. NEIGHBOR_SUBBANDS
+- Size: 27 elements
+- Type: `UncheckedIndexArray<(usize, usize), 27>`
+- Purpose: Stores the corresponding subband indices in the other two bands for each subband. Used for quick lookup of subbands for the same digit in other bands.
+- 用途：存储每个子带对应的其他两个带中的子带索引。用于快速查找同一数字在其他两个带中的子带。
+- 应用：在 `insert_candidate` 和 `_find_locked_candidates_and_update` 函数中使用，用于快速查找同一数字在其他带中的子带。通过预计算所有可能的子带对应关系，避免了在运行时进行复杂的索引计算，提高了跨带操作的效率。
+
+## Summary
+Total number of predefined arrays: 8
+- 512-element arrays: 5 (various mask conversions and candidate processing)
+- 81-element array: 1 (cell conflict handling)
+- 8-element array: 1 (row mask conversion)
+- 27-element array: 1 (subband index mapping)
+
+## Implementation Note
+All arrays are defined using the `UncheckedIndexArray` type, which is a custom type that can skip bounds checking when the `unchecked_indexing` feature is enabled, improving performance. These arrays primarily serve to accelerate various mask operations and candidate processing in the Sudoku solving process through precomputation and lookup tables.
+
+## Performance Benefits
+这些预定义数组的使用带来了以下性能优势：
+1. 通过预计算和查找表替代运行时计算，减少了CPU计算量
+2. 避免了复杂的位运算和条件判断，提高了代码执行效率
+3. 减少了内存访问次数，提高了缓存命中率
+4. 简化了代码逻辑，提高了代码可维护性
+5. 通过统一的掩码操作，实现了高效的候选数消除和数字确定

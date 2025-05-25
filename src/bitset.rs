@@ -345,3 +345,117 @@ impl<T: SetElement> fmt::Binary for Set<T> {
         write!(f, "{:b}", self.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::board::{Cell, Digit};
+
+    #[test]
+    fn test_set_creation() {
+        // Test empty set
+        let empty_set: Set<Cell> = Set::NONE;
+        assert!(empty_set.is_empty());
+        assert_eq!(empty_set.len(), 0);
+
+        // Test full set
+        let full_set: Set<Cell> = Set::ALL;
+        assert!(!full_set.is_empty());
+        assert_eq!(full_set.len(), 81);
+    }
+
+    #[test]
+    fn test_single_element_set() {
+        // Test creating a set with a single cell
+        let cell = Cell::new(80);
+        let set = cell.as_set();
+        assert!(!set.is_empty());
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(cell));
+
+        // Test creating a set with a single digit
+        let digit = Digit::new(1);
+        let set = digit.as_set();
+        assert!(!set.is_empty());
+        assert_eq!(set.len(), 1);
+        assert!(set.contains(digit));
+    }
+
+    #[test]
+    fn test_set_operations() {
+        // Test union operation
+        let cell1 = Cell::new(40);
+        let cell2 = Cell::new(15);
+        let set1 = cell1.as_set();
+        let set2 = cell2.as_set();
+        let union = set1 | set2;
+        assert_eq!(union.len(), 2);
+        assert!(union.contains(cell1));
+        assert!(union.contains(cell2));
+
+        // Test intersection operation
+        let intersection = set1 & set2;
+        assert!(intersection.is_empty());
+
+        // Test difference operation
+        let difference = union.without(set1);
+        assert_eq!(difference.len(), 1);
+        assert!(!difference.contains(cell1));
+        assert!(difference.contains(cell2));
+    }
+
+    #[test]
+    fn test_set_iteration() {
+        // Test iterating over a set of cells
+        let cell1 = Cell::new(50);
+        let cell2 = Cell::new(80);
+        let set = cell1.as_set() | cell2.as_set();
+
+        let mut iter = set.into_iter();
+        assert_eq!(iter.next(), Some(cell1));
+        assert_eq!(iter.next(), Some(cell2));
+        assert_eq!(iter.next(), None);
+
+        // Test iterating over a set of digits
+        let digit1 = Digit::new(1);
+        let digit2 = Digit::new(2);
+        let set = digit1.as_set() | digit2.as_set();
+
+        let mut iter = set.into_iter();
+        assert_eq!(iter.next(), Some(digit1));
+        assert_eq!(iter.next(), Some(digit2));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_unique() {
+        // Test unique element in set
+        let cell = Cell::new(30);
+        let set = cell.as_set();
+        assert_eq!(set.unique(), Ok(Some(cell)));
+
+        // Test empty set
+        let empty_set: Set<Cell> = Set::NONE;
+        assert!(matches!(empty_set.unique(), Err(_)));
+
+        // Test multiple elements
+        let cell1 = Cell::new(30);
+        let cell2 = Cell::new(61);
+        let set = cell1.as_set() | cell2.as_set();
+        assert_eq!(set.unique(), Ok(None));
+    }
+
+    #[test]
+    fn test_overlaps() {
+        // Test overlapping sets
+        let cell1 = Cell::new(60);
+        let cell2 = Cell::new(15);
+        let set1 = cell1.as_set() | cell2.as_set();
+        let set2 = cell2.as_set();
+        assert!(set1.overlaps(set2));
+
+        // Test non-overlapping sets
+        let set3 = Cell::new(2).as_set();
+        assert!(!set1.overlaps(set3));
+    }
+}

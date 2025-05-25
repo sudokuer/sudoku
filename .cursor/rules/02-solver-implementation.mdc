@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
 # 数独求解器实现
@@ -21,7 +21,68 @@ alwaysApply: false
   - 寻找锁定候选数（Locked Candidates）
   - 使用回溯（Backtracking）猜测解
 
-关键方法：
+### 求解循环
+
+求解器采用迭代的方式，在逻辑推理和猜测之间交替进行：
+
+1. **主循环**（`_solve` 函数）：
+   ```rust
+   loop {
+       // 1. 应用锁定候选数策略
+       find_locked_candidates_and_update()?;
+       
+       // 2. 检查是否已解决
+       if is_solved() {
+           return Ok(());
+       }
+       
+       // 3. 寻找裸单元格
+       if find_naked_singles()? {
+           continue;
+       }
+       
+       // 4. 如果无法继续，开始回溯
+       return Ok(());
+   }
+   ```
+
+2. **回溯策略**（`guess` 函数）：
+   - 当逻辑推理无法继续时，进入猜测阶段
+   - 首先尝试 `guess_bivalue_in_cell`：
+     * 优先选择只有两个可能值的单元格（这些位置在寻找裸单元格时已被记录）
+     * 保存当前状态
+     * 尝试第一个可能值
+     * 每次猜测后都会重新应用逻辑推理策略，也就是调用`_solve`（锁定候选数和裸单元格）
+     * 如果失败，回退并尝试第二个可能值
+   - 如果没有找到双值单元格，则使用 `guess_some_cell`：
+     * 检查最多3个未解决的单元格
+     * 选择候选数最少的那个单元格
+     * 尝试所有可能的数字
+     * 每次猜测后都会重新应用逻辑推理策略，也就是调用`_solve`（锁定候选数和裸单元格）
+     * 保存状态并在失败时回退
+
+### 性能优化
+
+1. **位运算优化**
+   - 使用位掩码进行快速计算
+   - 通过位运算实现高效的更新和查询
+
+2. **智能猜测**
+   - 优先选择只有两个可能值的单元格
+   - 减少回溯的次数
+   - 在找不到双值单元格时，智能选择最优猜测点
+
+3. **带状数据结构**
+   - 优化行、列和宫的处理
+   - 提高缓存命中率
+
+4. **编译器优化**
+   - 使用 `unroll` 宏展开关键循环
+   - 避免不可预测的分支，提高分支预测准确率
+   - 使用 `UncheckedIndexArray` 优化数组访问，减少边界检查开销
+
+### 关键方法
+
 - `find_naked_singles()` - 寻找只能包含一个数字的单元格
 - `find_locked_candidates_and_update()` - 寻找锁定候选数并更新
 - `guess_bivalue_in_cell()` - 在只有两个可能值的单元格中尝试猜测
@@ -29,7 +90,7 @@ alwaysApply: false
 
 ## 策略求解器
 
-[src/strategy.rs](mdc:src/strategy.rs) 和 [src/strategy/](mdc:src/strategy/) 目录实现了使用人类策略的求解器，包括：
+[src/strategy.rs](mdc:src/strategy.rs) 和 [src/strategy/](mdc:src/strategy) 目录实现了使用人类策略的求解器，包括：
 
 - 裸单元格和隐藏单元格
 - 锁定候选数

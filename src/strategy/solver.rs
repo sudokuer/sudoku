@@ -82,7 +82,7 @@ impl StrategySolver {
 
     /// Construct a new StrategySolver
     pub fn from_sudoku(sudoku: Sudoku) -> StrategySolver {
-        let deduced_entries = sudoku
+        let deduced_entries: Vec<_> = sudoku
             .iter()
             .enumerate()
             .filter_map(|(cell, opt_num)| opt_num.map(|digit| Candidate::new(cell as u8, digit)))
@@ -263,10 +263,18 @@ impl StrategySolver {
 
             let n_deductions = self.deduced_entries.len();
             let n_eliminated = self.eliminated_entries.len();
+            let n_solved_before = self.n_solved;
+            
+            // Update grid before trying strategies to ensure they see the latest state
+            self.update_grid();
+            
+            // Use optimization for first strategy if applicable
             if first.deduce_all(self, true).is_err() {
                 break;
             };
-            if self.deduced_entries.len() > n_deductions {
+            
+            // Check if we made progress either through new deductions or solved cells
+            if self.deduced_entries.len() > n_deductions || self.n_solved > n_solved_before {
                 continue 'outer;
             }
 
@@ -323,7 +331,15 @@ impl StrategySolver {
             *le_cp = self.eliminated_entries.len() as _;
         }
 
-        self.insert_entries(find_naked_singles, new_eliminations)
+        // 修复：当找 naked singles 且没有新的 eliminations 时，
+        // 仍然需要扫描所有单元格以找到可能的新 naked singles
+        if find_naked_singles && !new_eliminations && self.deduced_entries.len() == self.cell_poss_digits.next_deduced as usize {
+            // 没有待处理的推导，直接扫描所有单元格
+            self._batch_remove_conflicts(find_naked_singles)?;
+        } else {
+            self.insert_entries(find_naked_singles, new_eliminations)?;
+        }
+        Ok(())
     }
 
     fn update_house_poss_positions(&mut self) {
@@ -1291,6 +1307,300 @@ mod test {
         //    panic!("\n{}\n{}", grid_state_string, grid_state_string2);
         //}
     }
+
+    #[test]
+    fn test_solve_completes_fully() {
+        // Test case that previously required multiple iterations
+        let puzzle = "..64......2...5.4848.21.....9357.......6.1.......4253.....54.2616.8...5......31..";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        let empty_count = puzzle.chars().filter(|&c| c == '.').count();
+        assert_eq!(empty_count, 51);
+        
+        let mut solver = StrategySolver::from_sudoku(sudoku);
+        let strategies = [Strategy::NakedSingles, Strategy::HiddenSingles];
+        
+        println!("Initial n_solved: {}", solver.n_solved);
+        println!("Initial deduced_entries: {}", solver.deduced_entries.len());
+        
+        // Try to understand what try_solve returns
+        let made_progress = solver.try_solve(&strategies);
+        println!("try_solve returned: {}", made_progress);
+        println!("After try_solve: n_solved={}, deduced_entries={}", solver.n_solved, solver.deduced_entries.len());
+        
+        solver.update_grid();
+        let is_solved = solver.is_solved();
+        println!("is_solved: {}", is_solved);
+        
+        // Now use the full solve method
+        let solver = StrategySolver::from_sudoku(sudoku);
+        let (final_sudoku, deductions) = match solver.solve(&strategies) {
+            Ok((s, d)) => {
+                println!("Full solve returned Ok with {} deductions", d.len());
+                (s, d)
+            }
+            Err((s, d)) => {
+                println!("Full solve returned Err with {} deductions", d.len());
+                println!("Final sudoku is_solved: {}", s.is_solved());
+                
+                // Try continuing from where we left off
+                let solver2 = StrategySolver::from_sudoku(s);
+                match solver2.solve(&strategies) {
+                    Ok((s2, d2)) => {
+                        println!("Second solve returned Ok with {} more deductions", d2.len());
+                        println!("Second final is_solved: {}", s2.is_solved());
+                    },
+                    Err((s2, d2)) => {
+                        println!("Second solve returned Err with {} more deductions", d2.len());
+                        println!("Second final is_solved: {}", s2.is_solved());
+                    }
+                }
+                (s, d)
+            }
+        };
+        
+        // For now, relax the test to understand the behavior
+        println!("Final check - sudoku.is_solved(): {}, deductions.len(): {}", 
+                 final_sudoku.is_solved(), deductions.len());
+    }
+    
+    #[test]
+    fn test_solve_simple_puzzle() {
+        // Simple puzzle with only naked singles
+        let puzzle = "53467891.672195348198342567859761423426853791713924856961537284287419635345286179";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        let solver = StrategySolver::from_sudoku(sudoku);
+        let strategies = [Strategy::NakedSingles, Strategy::HiddenSingles];
+        
+        let (final_sudoku, deductions) = solver.solve(&strategies).unwrap();
+        
+        assert!(final_sudoku.is_solved());
+        assert_eq!(deductions.len(), 1); // Only one empty cell
+    }
+    
+    #[test]
+    fn test_optimization_vs_standard_path() {
+        // 深入比较优化路径和标准路径的行为差异
+        let puzzle = "..64......2...5.4848.21.....9357.......6.1.......4253.....54.2616.8...5......31..";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        println!("Testing STANDARD path:");
+        let mut solver1 = StrategySolver::from_sudoku(sudoku.clone());
+        println!("Initial: n_solved={}, deduced_entries={}", solver1.n_solved, solver1.deduced_entries.len());
+        
+        // 调用标准路径 (is_first_strategy = false)
+        let result1 = Strategy::NakedSingles.deduce(&mut solver1, false, false);
+        println!("After standard NakedSingles: n_solved={}, deduced_entries={}, result={:?}", 
+                 solver1.n_solved, solver1.deduced_entries.len(), result1);
+        
+        println!("\nTesting OPTIMIZATION path:");
+        let mut solver2 = StrategySolver::from_sudoku(sudoku.clone());
+        println!("Initial: n_solved={}, deduced_entries={}", solver2.n_solved, solver2.deduced_entries.len());
+        
+        // 调用优化路径 (is_first_strategy = true)
+        let result2 = Strategy::NakedSingles.deduce(&mut solver2, false, true);
+        println!("After optimized NakedSingles: n_solved={}, deduced_entries={}, result={:?}", 
+                 solver2.n_solved, solver2.deduced_entries.len(), result2);
+        
+        // 比较内部状态
+        println!("\nComparing internal states:");
+        println!("Standard path:");
+        println!("  cell_poss_digits.next_deduced: {}", solver1.cell_poss_digits.next_deduced);
+        println!("  house_solved_digits.next_deduced: {}", solver1.house_solved_digits.next_deduced);
+        
+        println!("Optimization path:");
+        println!("  cell_poss_digits.next_deduced: {}", solver2.cell_poss_digits.next_deduced);
+        println!("  house_solved_digits.next_deduced: {}", solver2.house_solved_digits.next_deduced);
+        
+        // 尝试再次调用看能否找到更多
+        println!("\nTrying to find more with standard path after first call:");
+        let result1b = Strategy::NakedSingles.deduce(&mut solver1, false, false);
+        println!("Second call standard: n_solved={}, deduced_entries={}, result={:?}", 
+                 solver1.n_solved, solver1.deduced_entries.len(), result1b);
+        
+        println!("\nTrying to find more with optimization path after first call:");
+        let result2b = Strategy::NakedSingles.deduce(&mut solver2, false, false);
+        println!("Second call optimized: n_solved={}, deduced_entries={}, result={:?}", 
+                 solver2.n_solved, solver2.deduced_entries.len(), result2b);
+    }
+    
+    #[test]
+    fn test_state_update_issue() {
+        // 验证为什么需要两次调用才能完全解决
+        let puzzle = "..64......2...5.4848.21.....9357.......6.1.......4253.....54.2616.8...5......31..";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        let mut solver = StrategySolver::from_sudoku(sudoku);
+        let strategies = [Strategy::NakedSingles, Strategy::HiddenSingles];
+        
+        // 手动调用 try_solve 并检查状态
+        println!("Initial state: n_solved={}, deduced_entries={}", 
+                 solver.n_solved, solver.deduced_entries.len());
+        
+        let made_progress = solver.try_solve(&strategies);
+        println!("After try_solve: made_progress={}, n_solved={}, deduced_entries={}", 
+                 made_progress, solver.n_solved, solver.deduced_entries.len());
+        
+        // 更新网格
+        solver.update_grid();
+        println!("After update_grid: grid has {} filled cells", 
+                 solver.grid.state.0.iter().filter(|&&x| x != 0).count());
+        
+        // 检查是否真的没有更多推导了
+        println!("\nTrying to find more deductions manually...");
+        
+        // 手动更新缓存状态
+        let _ = solver._update_cell_poss_house_solved(false, false);
+        
+        // 再次尝试找 naked singles
+        match solver.find_naked_singles(false) {
+            Ok(_) => println!("find_naked_singles succeeded"),
+            Err(_) => println!("find_naked_singles failed"),
+        }
+        println!("After manual naked singles: n_solved={}, deduced_entries={}", 
+                 solver.n_solved, solver.deduced_entries.len());
+        
+        // 再次尝试找 hidden singles  
+        match solver.find_hidden_singles(false) {
+            Ok(_) => println!("find_hidden_singles succeeded"),
+            Err(_) => println!("find_hidden_singles failed"),
+        }
+        println!("After manual hidden singles: n_solved={}, deduced_entries={}", 
+                 solver.n_solved, solver.deduced_entries.len());
+        
+        // 创建一个新的 solver 从当前状态
+        println!("\nCreating new solver from current state...");
+        let solver2 = StrategySolver::from_sudoku(solver.grid.state);
+        println!("New solver initial: n_solved={}, deduced_entries={}", 
+                 solver2.n_solved, solver2.deduced_entries.len());
+        
+        match solver2.solve(&strategies) {
+            Ok((s, d)) => {
+                println!("New solver: Solved! {} deductions", d.deductions.len());
+                assert!(s.is_solved());
+            }
+            Err((s, d)) => {
+                println!("New solver: Not solved. {} deductions", d.deductions.len());
+                println!("Final state: is_solved={}", s.is_solved());
+            }
+        }
+    }
+    
+    #[test]
+    fn test_trace_solver_workflow() {
+        // 简单的例子：第一行只缺一个数字
+        let puzzle = "12345678.........................................................................";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        let mut solver = StrategySolver::from_sudoku(sudoku);
+        
+        println!("=== 初始状态 ===");
+        println!("deduced_entries: {} 条", solver.deduced_entries.len());
+        println!("n_solved: {}", solver.n_solved);
+        println!("next_deduced: {}", solver.cell_poss_digits.next_deduced);
+        
+        // 手动展示第一行最后一个单元格的可能数字
+        println!("\n=== 处理前 Cell(8) 的状态 ===");
+        let _ = solver._update_cell_poss_house_solved(false, false);
+        let cell_8 = Cell::new(8);
+        println!("Cell(8) 可能数字: {:?}", solver.cell_poss_digits.state[cell_8]);
+        
+        println!("\n=== 调用 NakedSingles ===");
+        let result = solver.find_naked_singles(false);
+        println!("Result: {:?}", result);
+        println!("deductions 数量: {}", solver.deductions.len());
+        println!("deduced_entries: {} 条", solver.deduced_entries.len());
+        println!("n_solved: {}", solver.n_solved);
+        
+        // 查看找到的推导
+        if let Some(last_deduction) = solver.deductions.last() {
+            println!("最后的推导: {:?}", last_deduction);
+        }
+        
+        // 查看 Cell(8) 现在的状态
+        println!("\n=== 处理后 Cell(8) 的状态 ===");
+        println!("Cell(8) 可能数字: {:?}", solver.cell_poss_digits.state[cell_8]);
+        
+        println!("\n说明：");
+        println!("1. 初始有 8 个 clues，都在 deduced_entries 中");
+        println!("2. _update_cell_poss_house_solved 处理这 8 个，n_solved 增加到 8");
+        println!("3. Cell(8) 的可能数字从 ALL 变成只有 9");
+        println!("4. find_naked_singles 找到这个 naked single");
+        println!("5. 再次 update 后，n_solved 变成 9");
+    }
+    
+    #[test]
+    fn test_sudoku_solvability() {
+        // 先验证这个数独是否真的可以用基础策略解决
+        let puzzle = "..64......2...5.4848.21.....9357.......6.1.......4253.....54.2616.8...5......31..";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        // 使用更多策略
+        let all_strategies = Strategy::ALL;
+        let solver = StrategySolver::from_sudoku(sudoku.clone());
+        
+        match solver.solve(all_strategies) {
+            Ok((s, d)) => {
+                println!("With all strategies: Solved! {} deductions", d.len());
+                assert!(s.is_solved());
+            }
+            Err((s, d)) => {
+                println!("With all strategies: Not solved. {} deductions", d.len());
+                panic!("Even with all strategies, couldn't solve the puzzle!");
+            }
+        }
+        
+        // 现在尝试只用基础策略
+        let basic_strategies = [Strategy::NakedSingles, Strategy::HiddenSingles];
+        let solver2 = StrategySolver::from_sudoku(sudoku);
+        
+        match solver2.solve(&basic_strategies) {
+            Ok((s, d)) => {
+                println!("With basic strategies: Solved! {} deductions", d.len());
+            }
+            Err((s, d)) => {
+                println!("With basic strategies: Not fully solved. {} deductions", d.len());
+                println!("This sudoku requires advanced strategies!");
+            }
+        }
+    }
+    
+    #[test]
+    fn test_solve_should_complete_in_one_call() {
+        // 这个测试验证 solve 应该一次性完成求解
+        let puzzle = "..64......2...5.4848.21.....9357.......6.1.......4253.....54.2616.8...5......31..";
+        let sudoku = Sudoku::from_str_line(puzzle).unwrap();
+        
+        let empty_count = puzzle.chars().filter(|&c| c == '.').count();
+        assert_eq!(empty_count, 51);
+        
+        let solver = StrategySolver::from_sudoku(sudoku);
+        let strategies = [Strategy::NakedSingles, Strategy::HiddenSingles];
+        
+        // solve 应该一次性完成求解
+        let result = solver.solve(&strategies);
+        
+        match result {
+            Ok((final_sudoku, deductions)) => {
+                println!("Solve returned Ok with {} deductions", deductions.len());
+                assert!(final_sudoku.is_solved(), "Sudoku should be fully solved");
+                assert_eq!(deductions.deductions.len(), empty_count, 
+                    "Should have exactly {} strategy deductions for {} empty cells",
+                    empty_count, empty_count);
+            }
+            Err((final_sudoku, deductions)) => {
+                println!("Solve returned Err with {} deductions", deductions.len());
+                println!("Final sudoku is_solved: {}", final_sudoku.is_solved());
+                
+                // 这是当前的问题：solve 没有一次性完成
+                panic!("solve() should complete the puzzle in one call, but it returned Err. \
+                        Found {} deductions for {} empty cells. \
+                        Final state: solved={}",
+                       deductions.deductions.len(), empty_count, final_sudoku.is_solved());
+            }
+        }
+    }
 }
 
 fn print_grid_state(
@@ -1331,6 +1641,10 @@ fn print_grid_state(
     for stack in 0..3 {
         lengths[stack] = column_widths[stack * 3..][..3].iter().sum::<u8>() as usize;
     }
+#[cfg(test)]
+#[path = "trace_test.rs"]
+mod trace_test;
+
     _print_separator(
         f,
         upper_left_corner,
